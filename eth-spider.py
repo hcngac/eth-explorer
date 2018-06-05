@@ -35,10 +35,14 @@ def tx_reformat(eth, tx):
     return tx
 
 
-def scrap_tx(eth, fromBlock, toBlock):
-    logs = eth.getLogs({"fromBlock": fromBlock, "toBlock": toBlock})
-    txs = list(map(lambda log: tx_reformat(eth, eth.getTransaction(
-        log["transactionHash"])), logs))
+def get_txs_of_block(eth, block):
+    txs = []
+    tx_idx = 0
+    tx = eth.getTransactionFromBlock(block, tx_idx)
+    while tx is not None:
+        txs.append(tx_reformat(eth, tx))
+        tx = eth.getTransactionFromBlock(block, tx_idx)
+        tx_idx = tx_idx + 1
     return txs
 
 
@@ -51,10 +55,6 @@ def main():
                         help="Starting block number. (Default: latest block)")
     parser.add_argument("-t", action="store", type=int, default=-1,
                         help="Last block number. (Default: latest block)")
-    parser.add_argument("-b", action="store", type=int, default=1000,
-                        help="Batch size. (Default 1000)")
-    parser.add_argument("-m", action="store", type=int, default=10000,
-                        help="Maximum file size. (lines)(Default 10000)")
     parser.add_argument("-p", action="store_true",
                         help="Pretty print results.")
     parser.add_argument("-e", action="store_true",
@@ -71,24 +71,15 @@ def main():
     print("To block: " + str(t), file=sys.stderr)
 
     if args.e:
-        id = 1
         elasticSearch = Elasticsearch(
             hosts=[{"host": "localhost", "port": 9200}])
-        for fromBlock in range(f, t + 1, args.b):
-            toBlock = t if (fromBlock + args.b -
-                            1) > t else (fromBlock + args.b - 1)
-            print("Batch from block: " + str(fromBlock), file=sys.stderr)
-            print("Batch to block: " + str(toBlock), file=sys.stderr)
-            txs = scrap_tx(web3.eth, fromBlock, toBlock)
-            print("Transaction count: " + str(len(txs)))
+        for block in range(f, t + 1):
+            txs = get_txs_of_block(web3.eth, block)
+            print("Block: " + str(block) +
+                  " Transaction count: " + str(len(txs)))
             for tx in txs:
-                if elasticSearch.exists(index="eth-scraper",
-                                        doc_type="tx-log", id=id):
-                    elasticSearch.delete(index="eth-scraper",
-                                         doc_type="tx-log", id=id)
-                elasticSearch.create(index="eth-scraper",
-                                     doc_type="tx-log", id=id, body=tx)
-                id = id + 1
+                elasticSearch.index(index="eth-block" + str(block),
+                                    doc_type="tx-log", id=tx["transactionIndex"], body=tx)
 
     elif args.s == "nostore" and args.p:
         for fromBlock in range(f, t + 1, args.b):
@@ -111,30 +102,6 @@ def main():
             print("Transaction count: " + str(len(txs)))
             for tx in txs:
                 print(tx)
-
-    else:
-        file_serial = 1
-        file_tx_count = 0
-        max_tx_count = args.m
-        file_prefix = args.s
-        current_file_name = file_prefix + str(file_serial) + '.log'
-
-        print("Save to " + args.s)
-        for fromBlock in range(f, t + 1, args.b):
-            toBlock = t if (fromBlock + args.b -
-                            1) > t else (fromBlock + args.b - 1)
-            print("Batch from block: " + str(fromBlock), file=sys.stderr)
-            print("Batch to block: " + str(toBlock), file=sys.stderr)
-            txs = scrap_tx(web3.eth, fromBlock, toBlock)
-            print("Transaction count: " + str(len(txs)))
-            file_tx_count = file_tx_count + len(txs)
-            with open(current_file_name, "a") as tx_log_file:
-                for tx in txs:
-                    print(tx, file=tx_log_file)
-            if file_tx_count > max_tx_count:
-                file_serial = file_serial + 1
-                current_file_name = file_prefix + str(file_serial) + '.log'
-                file_tx_count = 0
 
 
 if __name__ == "__main__":

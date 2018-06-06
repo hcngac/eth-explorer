@@ -71,8 +71,8 @@ def main():
         print("Block: " + str(block) +
               " Transaction count: " + str(len(txs)))
         for tx in txs:
-            elasticSearch.index(index="eth-block" + str(block),
-                                doc_type="tx-log", id=tx["transactionIndex"], body=tx)
+            elasticSearch.index(index="eth-scraping",
+                                doc_type="tx-log", id="block-"+str(block)+"-tx-"+str(tx["transactionIndex"]), body=tx)
 
 
 if __name__ == "__main__":

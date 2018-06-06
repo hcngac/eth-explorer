@@ -55,12 +55,6 @@ def main():
                         help="Starting block number. (Default: latest block)")
     parser.add_argument("-t", action="store", type=int, default=-1,
                         help="Last block number. (Default: latest block)")
-    parser.add_argument("-p", action="store_true",
-                        help="Pretty print results.")
-    parser.add_argument("-e", action="store_true",
-                        help="Use localhost Elasticsearch.")
-    parser.add_argument("-s", action="store", type=str,
-                        default="nostore", help="Store transactions to files s.<i>.log. Saving to file is never pretty-printed.")
     args = parser.parse_args()
 
     web3 = w3()
@@ -70,38 +64,15 @@ def main():
     print("From block: " + str(f), file=sys.stderr)
     print("To block: " + str(t), file=sys.stderr)
 
-    if args.e:
-        elasticSearch = Elasticsearch(
-            hosts=[{"host": "localhost", "port": 9200}])
-        for block in range(f, t + 1):
-            txs = get_txs_of_block(web3.eth, block)
-            print("Block: " + str(block) +
-                  " Transaction count: " + str(len(txs)))
-            for tx in txs:
-                elasticSearch.index(index="eth-block" + str(block),
-                                    doc_type="tx-log", id=tx["transactionIndex"], body=tx)
-
-    elif args.s == "nostore" and args.p:
-        for fromBlock in range(f, t + 1, args.b):
-            toBlock = t if (fromBlock + args.b -
-                            1) > t else (fromBlock + args.b - 1)
-            print("Batch from block: " + str(fromBlock), file=sys.stderr)
-            print("Batch to block: " + str(toBlock), file=sys.stderr)
-            txs = scrap_tx(web3.eth, fromBlock, toBlock)
-            print("Transaction count: " + str(len(txs)))
-            for tx in txs:
-                pp.pprint(scrap_tx(web3.eth, fromBlock, toBlock))
-
-    elif args.s == "nostore" and not args.p:
-        for fromBlock in range(f, t + 1, args.b):
-            toBlock = t if (fromBlock + args.b -
-                            1) > t else (fromBlock + args.b - 1)
-            print("Batch from block: " + str(fromBlock), file=sys.stderr)
-            print("Batch to block: " + str(toBlock), file=sys.stderr)
-            txs = scrap_tx(web3.eth, fromBlock, toBlock)
-            print("Transaction count: " + str(len(txs)))
-            for tx in txs:
-                print(tx)
+    elasticSearch = Elasticsearch(
+        hosts=[{"host": "localhost", "port": 9200}])
+    for block in range(f, t + 1):
+        txs = get_txs_of_block(web3.eth, block)
+        print("Block: " + str(block) +
+              " Transaction count: " + str(len(txs)))
+        for tx in txs:
+            elasticSearch.index(index="eth-block" + str(block),
+                                doc_type="tx-log", id=tx["transactionIndex"], body=tx)
 
 
 if __name__ == "__main__":

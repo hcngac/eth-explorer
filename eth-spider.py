@@ -59,20 +59,35 @@ def main():
 
     web3 = w3()
     f = web3.eth.blockNumber if args.f is -1 else args.f
-    t = web3.eth.blockNumber if args.t is -1 else args.t
+    t = -1 if args.t is -1 else args.t
 
     print("From block: " + str(f), file=sys.stderr)
     print("To block: " + str(t), file=sys.stderr)
 
     elasticSearch = Elasticsearch(
         hosts=[{"host": "localhost", "port": 9200}])
-    for block in range(f, t + 1):
-        txs = get_txs_of_block(web3.eth, block)
-        print("Block: " + str(block) +
-              " Transaction count: " + str(len(txs)))
-        for tx in txs:
-            elasticSearch.index(index="eth-scraping",
-                                doc_type="tx-log", id="block-"+str(block)+"-tx-"+str(tx["transactionIndex"]), body=tx)
+
+    if t != -1:
+        for block in range(f, t + 1):
+            txs = get_txs_of_block(web3.eth, block)
+            print("Block: " + str(block) +
+                  " Transaction count: " + str(len(txs)))
+            for tx in txs:
+                elasticSearch.index(index="eth-scraping",
+                                    doc_type="tx-log", id="block-"+str(block)+"-tx-"+str(tx["transactionIndex"]), body=tx)
+
+    else:
+        block = f
+        while True:
+            while web3.eth.blockNumber <= block:
+                pass
+            txs = get_txs_of_block(web3.eth, block)
+            print("Block: " + str(block) +
+                  " Transaction count: " + str(len(txs)))
+            for tx in txs:
+                elasticSearch.index(index="eth-scraping",
+                                    doc_type="tx-log", id="block-"+str(block)+"-tx-"+str(tx["transactionIndex"]), body=tx)
+            block = block + 1
 
 
 if __name__ == "__main__":
